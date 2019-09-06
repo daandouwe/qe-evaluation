@@ -315,15 +315,16 @@ class Evaluator(object):
                     category_discount_matched,
                     both_discount_matched,
                 ]
-
-                annotation_labels['system_severities'].append(
-                    system_annotation.severity)
-                annotation_labels['system_categories'].append(
-                    system_annotation.category)
-                annotation_labels['reference_severities'].append(
-                    reference_annotation.severity)
-                annotation_labels['reference_categories'].append(
-                    reference_annotation.category)
+                # only consider a label as a 'prediction' when there is _some_ overlap
+                if matched > 0:
+                    annotation_labels['system_severities'].append(
+                        system_annotation.severity)
+                    annotation_labels['system_categories'].append(
+                        system_annotation.category)
+                    annotation_labels['reference_severities'].append(
+                        reference_annotation.severity)
+                    annotation_labels['reference_categories'].append(
+                        reference_annotation.category)
 
         lengths_sys = np.array([len(annotation) for annotation in system])
         lengths_ref = np.array([len(annotation) for annotation in reference])
@@ -515,10 +516,6 @@ def main():
     reference = load_annotations(args.ref)
     evaluator = Evaluator()
     f1, annotation_labels = evaluator.run(system, reference, args.verbose)
-    for key, value in f1.items():
-        title = key.replace('_', ' ')
-        pretty_title = title[0].upper() + title[1:-2] + title[-2:].upper()
-        print('{}: {}'.format(pretty_title, round(value, 4)))
 
     if args.confusion:
         severities_confusion_df, _ = compute_measures_per_category(
@@ -541,6 +538,11 @@ def main():
 
         severities_confusion_df.to_csv(severities_path, sep='\t')
         categories_confusion_df.to_csv(categories_path, sep='\t')
+
+    for key, value in f1.items():
+        title = key.replace('_', ' ')
+        pretty_title = title[0].upper() + title[1:-2] + title[-2:].upper()
+        print('{}: {}'.format(pretty_title, round(value, 4)))
 
 
 if __name__ == '__main__':
