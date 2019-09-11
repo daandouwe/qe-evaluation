@@ -362,19 +362,21 @@ class Evaluator(object):
 
 
 @functools.lru_cache(maxsize=1024)
-def category_distance(gold, pred, level_sep='/'):
-    if gold == pred:
+def category_distance(pred, gold, level_sep='/'):
+    if pred == gold:
         # avoid division by 0 in Evaluator.category_match
         return 1
+    elif level_sep in gold and not level_sep in pred:
+        return category_distance(gold.split(level_sep)[0], pred)
     else:
         # keep eating items that match till we find the first that does not
-        gold = iter(gold.split(level_sep))
         pred = iter(pred.split(level_sep))
+        gold = iter(gold.split(level_sep))
         match = True
         while match:
-            match = (next(gold) == next(pred))
+            match = (next(pred) == next(gold))
         # add 2 to account for the level the ate to find the first non-matching level
-        return len(list(gold)) + len(list(pred)) + 2
+        return len(list(pred)) + len(list(gold)) + 2
 
 
 def top_category(category, level_sep='/'):
@@ -521,12 +523,12 @@ def main():
         severities_confusion_df, _ = compute_measures_per_category(
             annotation_labels['system_severities'],
             annotation_labels['reference_severities'],
-            annotation_labels['reference_severities'],  # this is just dummy for tokens
+            annotation_labels['reference_severities'],  # this is just a dummy input in the absence of 'tokens'
         )
         categories_confusion_df, _ = compute_measures_per_category(
             annotation_labels['system_categories'],
             annotation_labels['reference_categories'],
-            annotation_labels['reference_categories'],  # this is just dummy for tokens
+            annotation_labels['reference_categories'],  # this is just a dummy input in the absence of 'tokens'
         )
 
         output_path = Path(args.output)
