@@ -1,6 +1,7 @@
 """Script to evaluate document-level QE as in the WMT19 shared task."""
 
 import argparse
+import sys
 import functools
 from collections import defaultdict
 from pathlib import Path
@@ -116,7 +117,7 @@ class Annotation(object):
         both_exact_matched = matched * (
             self.severity == annotation.severity and self.category == annotation.category)
         category_exact_top_matched = matched * (
-            top_category(self.category) == top_category(annotation.category))
+            select_category_level(self.category, 0) == select_category_level(annotation.category, 0))
 
         # Scale overlap by a coefficient that takes into account mispredictions
         # of the severity. For example, predicting "major" when the error is
@@ -252,8 +253,8 @@ class Evaluator(object):
                 system_annotations, reference_annotations)
 
             if verbose:
-                print(doc_id)
-                print(' '.join(map(str, f1_scores)))
+                print(doc_id, file=sys.stderr)
+                print(' '.join(map(str, f1_scores)), file=sys.stderr)
 
             total_f1['matching_f1'] += f1_scores[0]
             total_f1['severity_exact_matching_f1'] += f1_scores[1]
@@ -366,8 +367,6 @@ def category_distance(pred, gold, level_sep='/'):
     if pred == gold:
         # avoid division by 0 in Evaluator.category_match
         return 1
-    elif level_sep in gold and not level_sep in pred:
-        return category_distance(gold.split(level_sep)[0], pred)
     else:
         # keep eating items that match till we find the first that does not
         pred = iter(pred.split(level_sep))
@@ -379,11 +378,14 @@ def category_distance(pred, gold, level_sep='/'):
         return len(list(pred)) + len(list(gold)) + 2
 
 
-def top_category(category, level_sep='/'):
-    return category.split(level_sep)[0]
+def select_category_level(category, level, level_sep='/'):
+    if level == -1:
+        return category
+    else:
+        return level_sep.join(category.split(level_sep)[:level])
 
 
-def load_annotations(file_path):
+def load_annotations(file_path, category_level):
     """Loads a file containing annotations for multiple documents.
 
     The file should contain lines with the following format:
@@ -406,6 +408,7 @@ def load_annotations(file_path):
                 continue
 
             fields = line.split('\t')
+            fields[-1] = select_category_level(fields[-1], level=category_level)
             doc_id = fields[0]
 
             try:
@@ -413,7 +416,7 @@ def load_annotations(file_path):
             except OverlappingSpans:
                 msg = 'Overlapping spans when reading line %d of file %s '
                 msg %= (i, file_path)
-                print(msg)
+                print(msg, file=sys.stderr)
                 continue
 
             annotations[doc_id].append(annotation)
@@ -512,10 +515,14 @@ def main():
                         action='store_true', dest='confusion')
     parser.add_argument('-o', help='Output path for confusion matrices',
                         default='.', dest='output')
+    parser.add_argument('-l', help='Depth of the category typology tree',
+                        type=int, default=-1, dest='category_level')
+    parser.add_argument('--tsv', help='Save results in tsv format',
+                        action='store_true')
     args = parser.parse_args()
 
-    system = load_annotations(args.system)
-    reference = load_annotations(args.ref)
+    system = load_annotations(args.system, args.category_level)
+    reference = load_annotations(args.ref, args.category_level)
     evaluator = Evaluator()
     f1, annotation_labels = evaluator.run(system, reference, args.verbose)
 
@@ -532,19 +539,23 @@ def main():
         )
 
         output_path = Path(args.output)
-        severities_path = output_path / 'severities_confusion.tsv'
-        categories_path = output_path / 'categories_confusion.tsv'
+        severities_path = output_path / 'annotation_severities_confusion.tsv'
+        categories_path = output_path / 'annotation_categories_confusion.tsv'
 
         print('Saving confusion matrices to {} and {}'.format(
-            severities_path, categories_path))
+            severities_path, categories_path), file=sys.stderr)
 
         severities_confusion_df.to_csv(severities_path, sep='\t')
         categories_confusion_df.to_csv(categories_path, sep='\t')
 
-    for key, value in f1.items():
-        title = key.replace('_', ' ')
-        pretty_title = title[0].upper() + title[1:-2] + title[-2:].upper()
-        print('{}: {}'.format(pretty_title, round(value, 4)))
+    if args.tsv:
+        print('\t'.join('annotation_' + key for key in f1.keys()))
+        print('\t'.join(str(round(value, 4)) for value in f1.values()))
+    else:
+        for key, value in f1.items():
+            title = key.replace('_', ' ')
+            pretty_title = title[0].upper() + title[1:-2] + title[-2:].upper()
+            print('{}: {}'.format(pretty_title, round(value, 4)))
 
 
 if __name__ == '__main__':
