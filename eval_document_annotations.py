@@ -466,9 +466,9 @@ def compute_measures_per_category(true_tags: list, predicted_tags: list, target_
         precision = tp / (tp + fp + 1e-30)
         recall = tp / (tp + fn + 1e-30)
         df.loc[category] = {
-            'precision': precision,
-            'recall': recall,
-            'f1-score': (2 * precision * recall) / (precision + recall + 1e-30),
+            'precision': round(precision, 3),
+            'recall': round(recall, 3),
+            'f1-score': round((2 * precision * recall) / (precision + recall + 1e-30), 3),
             'support': int(tp + fn),
             'predicted': int(tp + fp),
             'TP': int(tp),
@@ -491,9 +491,9 @@ def compute_measures_per_category(true_tags: list, predicted_tags: list, target_
     recall = df['TP'].sum() / (df['support'].sum() + 1e-30)
     f1 = (2 * precision * recall) / (precision + recall + 1e-30)
     df.loc['Total'] = {
-        'precision': precision,
-        'recall': recall,
-        'f1-score': f1,
+        'precision': round(precision, 3),
+        'recall': round(recall, 3),
+        'f1-score': round(f1, 3),
         'support': df['support'].sum(),
         'predicted': df['predicted'].sum(),
         'TP': df['TP'].sum(),
